@@ -1,130 +1,129 @@
 import numpy as np
-from scipy.special import gamma, hyp2f1
-import time
-from mpmath import mp, mpf, hyp2f1 as mp_hyp2f1, fac, pi as mpi
+import pandas as pd
+import pyperf
+from itertools import product
+from tqdm import tqdm
+from implementations import (
+    compute_normalization_vectorized,
+    compute_normalization_mpmath,
+    compute_normalization_gauss_legendre,
+    compute_normalization_qags
+)
 
-
-def compute_normalization_vectorized(alpha, beta, n_terms=14):
+def time_function(func, *args, warmups=7, samples=21, min_sample_window_s=0.05, **kwargs):
     """
-    Compute the normalization constant for the King function using a vectorized
-    finite-term series expansion with SciPy's hypergeometric function.
-
-    The implementation utilizes the expansion:
-    N(α, β) = \sum_{n=0}^{n_terms-1} \frac{(-1)^n π^{2n+2}}{2(n+1)(2n+1)!} ₂F₁(n+1, β; n+2; z)
-    where z = -π² / (2β α²).
-
-    Parameters:
-    -----------
-    alpha : float or array-like
-        The core scale parameter (α > 0).
-    beta : float
-        The concentration parameter (β > 0).
-    n_terms : int, optional
-        Number of terms to include in the expansion. Default is 14,
-        which is universally sufficient to reach float64 machine
-        precision across the typical stable parameter domain.
-
-    Returns:
-    --------
-    float or array-like
-        The computed normalization constant.
+    Measure execution time with a pyperf-backed clock.
+    Returns summary statistics (in microseconds) over repeated samples.
     """
-    # Create the term index array
-    n = np.arange(n_terms, dtype=np.float64)
+    # Warm multiple times to stabilize caches / branch predictors.
+    for _ in range(warmups):
+        func(*args, **kwargs)
 
-    # Calculate the argument for the hypergeometric function
-    z = -np.pi**2 / (2 * beta * alpha**2)
+    # Calibrate loop count so each sample has enough wall-clock signal.
+    iters = 1
+    while True:
+        start = pyperf.perf_counter()
+        for _ in range(iters):
+            func(*args, **kwargs)
+        elapsed = pyperf.perf_counter() - start
+        if elapsed >= min_sample_window_s:
+            break
+        iters *= 2
+        if iters >= 100_000:
+            break
 
-    # Precompute the series coefficients: (-1)^n * π^(2n+2) / (2 * (n+1) * (2n+1)!)
-    # Note: gamma(2n + 2) = (2n+1)!
-    coef = ((-1) ** n * np.pi ** (2 * n + 2)) / (2 * (n + 1) * gamma(2 * n + 2))
+    sample_times_us = []
+    for _ in range(samples):
+        start = pyperf.perf_counter()
+        for _ in range(iters):
+            func(*args, **kwargs)
+        elapsed = pyperf.perf_counter() - start
+        sample_times_us.append((elapsed / iters) * 1e6)
 
-    # Evaluate the Gaussian hypergeometric function ₂F₁(a, b; c; z)
-    # SciPy's implementation is natively vectorized over 'a' and 'z'
-    hyper_val = hyp2f1(n + 1, beta, n + 2, z)
+    arr = np.asarray(sample_times_us, dtype=float)
+    return {
+        "Time_us": float(np.mean(arr)),
+        "Time_Mean_us": float(np.mean(arr)),
+        "Time_Min_us": float(np.min(arr)),
+        "Time_Q1_us": float(np.percentile(arr, 25)),
+        "Time_Median_us": float(np.median(arr)),
+        "Time_Q3_us": float(np.percentile(arr, 75)),
+        "Time_Max_us": float(np.max(arr)),
+    }
 
-    # Sum all terms to obtain the final normalization value
-    return np.sum(coef * hyper_val)
-
-
-def compute_normalization_mpmath(alpha, beta, precision=30, n_terms=30):
-    """
-    High-precision evaluation of the King normalization constant using mpmath.
-    Used as a ground-truth reference for validating numerical accuracy.
-
-    Parameters:
-    -----------
-    alpha : float
-        The scale parameter α.
-    beta : float
-        The parameter β.
-    precision : int, optional
-        Digits of precision (dps) for the mpmath context. Default is 30.
-    n_terms : int, optional
-        Number of terms in the series summation. Default is 30.
-
-    Returns:
-    --------
-    float
-        The normalization constant cast to standard float64.
-    """
-    mp.dps = precision
-    alpha_mp, beta_mp = mpf(alpha), mpf(beta)
-    z = -(mpi**2) / (2 * beta_mp * alpha_mp**2)
-
-    total = mpf(0)
-    for n in range(n_terms):
-        term = (
-            ((-1) ** n * mpi ** (2 * n + 2))
-            / (2 * (n + 1) * fac(2 * n + 1))
-            * mp_hyp2f1(n + 1, beta_mp, n + 2, z)
-        )
-        total += term
-
-    return float(total)
-
-
-# --- Performance and Accuracy Benchmark ---
-
-if __name__ == "__main__":
-    alpha, beta = 0.01, 2.5
-
-    print(f"Benchmarking King Normalization (α={alpha}, β={beta})")
-
-    # Calculate ground truth
-    reference_value = compute_normalization_mpmath(alpha, beta)
-
-    benchmark_configs = [
-        ("mpmath (Ground Truth)", compute_normalization_mpmath),
-        ("SciPy (Vectorized)", compute_normalization_vectorized),
+def benchmark():
+    # Grid specification
+    alphas = np.logspace(-6, 0, 16)
+    betas = np.linspace(1, 10, 16)
+    
+    # Precision setups
+    precisions = {
+        "64-bit": {
+            "rel_tol": float(np.finfo(np.float64).eps),
+            "n_terms": 14,
+        },
+        "32-bit": {
+            "rel_tol": float(np.finfo(np.float32).eps),
+            "n_terms": 9,
+        }
+    }
+    
+    configs = [
+        ("Series", compute_normalization_vectorized, "n_terms"),
+        ("Gauss-Legendre", compute_normalization_gauss_legendre, "rel_tol"),
+        ("QAGS", compute_normalization_qags, "rel_tol")
     ]
+    
+    print(f"Running benchmark grid: 16x16 ({16 * 16} parameter combos)...")
+    results = []
+    
+    for alpha, beta in tqdm(list(product(alphas, betas)), desc="Benchmarking"):
+        # Ground truth
+        truth = compute_normalization_mpmath(alpha, beta)
+        
+        for prec_label, params in precisions.items():
+            for label, func, param_name in configs:
+                kwargs = {param_name: params[param_name]}
+                
+                # Accuracy
+                res = func(alpha, beta, **kwargs)
+                rel_error = abs(res - truth) / abs(truth) if truth != 0 else 0.0
+                
+                # Performance
+                timing_stats = time_function(func, alpha, beta, **kwargs)
+                
+                results.append({
+                    "Precision": prec_label,
+                    "Implementation": label,
+                    "Alpha": alpha,
+                    "Beta": beta,
+                    "Rel_Error": rel_error,
+                    # Keep Time_us for compatibility with existing plotting scripts.
+                    **timing_stats
+                })
 
-    print(
-        f"{'Implementation':<25} | {'Result':<22} | {'Rel. Error':<12} | {'Avg Time (µs)':<14}"
-    )
-    print("-" * 80)
+    # Save and output
+    df = pd.DataFrame(results)
+    csv_filename = "benchmark_results.csv"
+    df.to_csv(csv_filename, index=False)
+    print(f"\nSaved raw data to: {csv_filename}\n")
+    
+    # Generate neat summary by grouping
+    summary = df.groupby(["Precision", "Implementation"]).agg(
+        Max_Rel_Error=("Rel_Error", "max"),
+        Med_Rel_Error=("Rel_Error", "median"),
+        Avg_Time_us=("Time_Mean_us", "mean"),
+        Med_Time_us=("Time_Median_us", "median"),
+        Max_Time_us=("Time_Max_us", "max"),
+        Min_Time_us=("Time_Min_us", "min")
+    ).reset_index()
+    
+    # Sort for consistent display
+    summary = summary.sort_values(by=["Precision", "Avg_Time_us"], ascending=[False, True])
+    
+    print("=== Benchmark Summary ===")
+    print(summary.to_string(index=False, float_format="{:.3e}".format))
 
-    for label, func in benchmark_configs:
-        # Final value check
-        result = func(alpha, beta)
-        rel_error = (
-            abs(result - reference_value) / abs(reference_value)
-            if reference_value != 0
-            else 0
-        )
-
-        # Timing
-        # Preliminary call to ensure any lazy loading/caching is handled
-        _ = func(alpha, beta)
-
-        iterations = 100_000 if "SciPy" in label else 100
-        start_time = time.perf_counter()
-        for _ in range(iterations):
-            func(alpha, beta)
-        end_time = time.perf_counter()
-
-        avg_latency = (end_time - start_time) / iterations * 1e6
-
-        print(
-            f"{label:<25} | {result:<22.17e} | {rel_error:<12.2e} | {avg_latency:<14.2f}"
-        )
+    
+if __name__ == "__main__":
+    benchmark()
