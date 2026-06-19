@@ -1,0 +1,246 @@
+# ==============================================================================
+# pyproject.toml — Python Style Contract
+# Physics / Data Science Projects
+# ==============================================================================
+# Toolchain: Ruff · mypy · pytest · coverage · MkDocs Material + mkdocstrings
+# Docstring convention: NumPy (raw strings for LaTeX-heavy content)
+# Target runtime: CPython 3.11+
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# BUILD SYSTEM
+# ------------------------------------------------------------------------------
+[build-system]
+requires      = ["hatchling"]
+build-backend = "hatchling.build"
+
+# ------------------------------------------------------------------------------
+# PROJECT METADATA  (fill in per-repo)
+# ------------------------------------------------------------------------------
+[project]
+name            = "your-project-name"
+version         = "0.1.0"
+description     = "A rigorous physics / data-science project."
+readme          = "README.md"
+requires-python = ">=3.11"
+license         = { text = "MIT" }
+
+# ==============================================================================
+# RUFF — linter + formatter (replaces flake8, isort, black, pydocstyle)
+# ==============================================================================
+[tool.ruff]
+line-length    = 120
+target-version = "py311"           # tell Ruff which syntax is legal
+src            = ["src", "tests"]  # helps isort distinguish first-party imports
+
+# ------------------------------------------------------------------------------
+# Formatter
+# ------------------------------------------------------------------------------
+[tool.ruff.format]
+indent-style              = "space"
+quote-style               = "double"
+skip-magic-trailing-comma = false   # preserve intentional trailing commas
+
+# ------------------------------------------------------------------------------
+# Linter — rule selection
+# ------------------------------------------------------------------------------
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle — base style errors
+    "W",    # pycodestyle — warnings (e.g. trailing whitespace)
+    "F",    # Pyflakes   — unused variables / imports / undefined names
+    "I",    # isort      — import ordering
+    "ANN",  # flake8-annotations — enforce type hints
+    "D",    # pydocstyle — docstring presence and format
+    "N",    # pep8-naming — naming conventions (CamelCase classes, snake_case funcs)
+    "UP",   # pyupgrade  — flag Python < 3.11 idioms (use | instead of Union, etc.)
+    "B",    # flake8-bugbear — likely bugs & design issues
+    "SIM",  # flake8-simplify — simplifiable constructs
+    "TCH",  # flake8-type-checking — move pure-annotation imports into TYPE_CHECKING
+    "RUF",  # Ruff-native rules — miscellaneous quality rules
+]
+
+ignore = [
+    # ---- type annotation relaxations ----------------------------------------
+    "ANN101",  # self never needs a type hint
+    "ANN102",  # cls  never needs a type hint
+    "ANN401",  # Allow Any — necessary for generic scientific code (np.ndarray, etc.)
+
+    # ---- docstring relaxations for NumPy convention -------------------------
+    "D100",    # Module-level docstrings are optional (too noisy for scripts)
+    "D203",    # "1 blank line before class docstring" — CONFLICTS with D211 (NumPy uses D211)
+    "D213",    # "Multi-line summary on second line" — CONFLICTS with D212 (NumPy uses D212)
+
+    # ---- stylistic noise ----------------------------------------------------
+    "E501",    # Line-too-long is handled by the formatter, not the linter
+]
+
+# Allow auto-fix for all fixable rules except the ones that produce surprises
+fixable   = ["ALL"]
+unfixable = [
+    "F401",  # Never auto-remove unused imports — might be re-exported or needed at runtime
+    "F841",  # Never auto-remove unused local variables — might be intentional (debugging)
+]
+
+# ------------------------------------------------------------------------------
+# Per-file rule overrides
+# ------------------------------------------------------------------------------
+[tool.ruff.lint.per-file-ignores]
+# Tests don't need full annotation coverage or docstrings on every helper
+"tests/**/*.py"   = ["ANN", "D"]
+"tests/*.py"      = ["ANN", "D"]
+# Standalone research / notebook-style scripts: relax docstrings, allow prints
+"scripts/**/*.py" = ["D", "T20"]
+# __init__.py re-exports don't need docstrings and unused-import is intentional
+"**/__init__.py"  = ["D", "F401"]
+
+# ------------------------------------------------------------------------------
+# isort — import ordering (via Ruff's I rules)
+# ------------------------------------------------------------------------------
+[tool.ruff.lint.isort]
+# Replace "mypackage" with your actual first-party package name(s)
+known-first-party         = ["mypackage"]
+force-sort-within-sections = true
+# Standard section order: __future__ → stdlib → third-party → first-party → local
+section-order = [
+    "future",
+    "standard-library",
+    "third-party",
+    "first-party",
+    "local-folder",
+]
+
+# ------------------------------------------------------------------------------
+# Docstring convention — locked to NumPy
+# ------------------------------------------------------------------------------
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+# ------------------------------------------------------------------------------
+# McCabe complexity — flag any function harder to follow than complexity 10
+# ------------------------------------------------------------------------------
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+# ==============================================================================
+# MYPY — static type checker
+# ==============================================================================
+[tool.mypy]
+python_version        = "3.11"
+strict                = true
+ignore_missing_imports = true
+
+# Reconcile strict mode with ANN401 (Any is permitted where annotated explicitly)
+disallow_any_generics    = true    # List not OK, List[float] required
+disallow_any_explicit    = false   # Explicit Any is permitted (matches ANN401 allowance)
+disallow_any_unimported  = true    # No implicit Any from missing stubs
+warn_return_any          = true    # Still warn when Any leaks out of a return type
+
+# Useful extras for scientific code
+warn_unreachable          = true   # Dead branches after narrowing (catches logic errors)
+show_error_codes          = true   # Include error codes so ignores can be precise
+pretty                    = true
+
+# Per-module overrides — relax where stubs are genuinely unavailable
+[[tool.mypy.overrides]]
+module = [
+    "scipy.*",
+    "astropy.*",
+    "matplotlib.*",
+    "sklearn.*",
+    "h5py.*",
+]
+ignore_missing_imports = true
+disallow_untyped_defs  = false     # These libraries often lack complete stubs
+
+# ==============================================================================
+# PYTEST
+# ==============================================================================
+[tool.pytest.ini_options]
+testpaths    = ["tests"]
+addopts      = [
+    "-ra",            # show short summary for all non-passing tests
+    "--strict-markers",   # fail if an unknown marker is used
+    "--tb=short",         # compact tracebacks
+]
+# Declare custom markers here to keep --strict-markers happy
+markers = [
+    "slow: marks tests as slow (deselect with -m 'not slow')",
+    "integration: marks integration tests that hit external resources",
+    "unit: marks fast, isolated unit tests",
+]
+# Reproducible random seeds when using hypothesis or numpy.random
+# (set per-test via fixture; this just documents the convention)
+filterwarnings = [
+    "error",                          # promote all warnings to errors in tests
+    "ignore::DeprecationWarning:pkg_resources",  # suppress noisy third-party warnings
+]
+
+# ==============================================================================
+# COVERAGE
+# ==============================================================================
+[tool.coverage.run]
+source    = ["src"]
+branch    = true                 # measure branch coverage, not just line coverage
+omit      = [
+    "src/**/conftest.py",
+    "src/**/__main__.py",
+    "scripts/*",
+]
+
+[tool.coverage.report]
+fail_under   = 80                # fail CI if total coverage drops below 80 %
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",          # type-only imports never execute at runtime
+    "if __name__ == .__main__.:", # entry-point guards
+    "raise NotImplementedError",  # abstract method stubs
+    "@overload",                  # typing overloads are never called directly
+]
+
+# ==============================================================================
+# MKDOCS (docs/mkdocs.yml is the canonical config; replicate key choices here
+# for discoverability.  Actual MkDocs config must live in docs/mkdocs.yml.)
+# ==============================================================================
+# Reminder of the agreed stack:
+#   theme        : Material for MkDocs, dark palette ("slate")
+#   plugins      : mkdocstrings[python], search
+#   docstring    : numpy  (parsed by griffe)
+#   math         : MathJax 3 via custom_js in mkdocs.yml
+#   source links : enabled via mkdocstrings show_source = true
+#
+# Raw docstrings (r"""...""") MUST be used for any docstring containing
+# LaTeX so that backslashes are not consumed by Python before MkDocs sees them.
+#
+# Example of a correctly formatted physics docstring:
+#
+#   def hamiltonian(q: np.ndarray, p: np.ndarray) -> float:
+#       r"""Compute the classical Hamiltonian :math:`H(q, p)`.
+#
+#       The Hamiltonian is defined as
+#
+#       .. math::
+#
+#           H(q, p) = \frac{p^2}{2m} + V(q)
+#
+#       where :math:`V(q)` is the potential energy surface.
+#
+#       Parameters
+#       ----------
+#       q : np.ndarray
+#           Generalised coordinates, shape ``(n_dof,)``.
+#       p : np.ndarray
+#           Conjugate momenta, shape ``(n_dof,)``.
+#
+#       Returns
+#       -------
+#       float
+#           Total energy in Joules.
+#
+#       Notes
+#       -----
+#       This function assumes SI units throughout.  For atomic units
+#       set ``m = 1`` and rescale :math:`V`.
+#       """
