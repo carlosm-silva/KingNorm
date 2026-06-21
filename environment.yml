@@ -1,0 +1,25 @@
+name: king-norm-env
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - build
+  - coverage
+  - matplotlib
+  - mkdocs
+  - mkdocs-material
+  - mkdocstrings-python
+  - mpmath
+  - mypy
+  - numpy
+  - pandas
+  - pip
+  - pyperf
+  - pymdown-extensions
+  - pytest
+  - pytest-cov
+  - ruff
+  - setuptools
+  - scipy
+  - tqdm
+  - wheel

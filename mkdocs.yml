@@ -1,7 +1,10 @@
-site_name: WIP TODO
-site_description: WIP TODO
+site_name: King's Function Normalization
+site_description: Numerical evaluation of the King's-function normalization constant.
 nav:
   - Home: index.md
+  - Getting Started: usage.md
+  - Theory and Numerics: theory.md
+  - API Reference: api.md
 
 theme:
   name: material

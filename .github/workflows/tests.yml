@@ -1,0 +1,42 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    name: Unit and numerical checks
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        shell: bash -el {0}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up conda environment
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          use-mamba: true
+          environment-file: environment.yml
+          activate-environment: king-norm-env
+
+      - name: Compile Python files
+        run: |
+          python -m py_compile \
+            implementations.py \
+            speed_tests.py \
+            plot_benchmarks.py \
+            tests/test_king_norm.py \
+            scripts/check_paper_numerics.py \
+            scripts/refresh_series_errors.py
+
+      - name: Run unit tests
+        run: python -m unittest discover -s tests
+
+      - name: Check paper numerical claims
+        run: python scripts/check_paper_numerics.py --claims-only
