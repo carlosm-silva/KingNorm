@@ -3,7 +3,6 @@ channels:
   - conda-forge
 dependencies:
   - python=3.11
-  - build
   - coverage
   - matplotlib
   - mkdocs
@@ -18,6 +17,7 @@ dependencies:
   - pymdown-extensions
   - pytest
   - pytest-cov
+  - python-build
   - ruff
   - setuptools
   - scipy
