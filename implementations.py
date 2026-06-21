@@ -363,5 +363,6 @@ def compute_normalization_qags(alpha: float, beta: float, rel_tol: float = DEFAU
     info = result[2]
     evaluations_used = int(info["neval"])
     has_integration_warning = any(issubclass(warning.category, IntegrationWarning) for warning in caught_warnings)
-    converged = len(result) == 3 and not has_integration_warning
+    qags_message = result[3] if len(result) > 3 else None
+    converged = qags_message is None and not has_integration_warning
     return QuadratureResult(value, evaluations_used, converged)

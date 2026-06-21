@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 from typing import TYPE_CHECKING
 import unittest
+from unittest.mock import patch
 
 # Add the repository root so the tests import the local implementation module.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -65,6 +66,24 @@ class TestKingNorm(unittest.TestCase):
                 self.assertTrue(result.converged)
                 self.assertGreater(result.work_done, 0)
                 self.assertLessEqual(rel_error, 1e-6)
+
+    def test_qags_three_item_output_reports_convergence(self) -> None:
+        """Check successful QAGS output without a message is marked converged."""
+        with patch.object(implementations, "quad", return_value=(1.0, 0.0, {"neval": 21})):
+            result = implementations.compute_normalization_qags(0.4, 2.5)
+
+        self.assertEqual(float(result), 1.0)
+        self.assertEqual(result.work_done, 21)
+        self.assertTrue(result.converged)
+
+    def test_qags_four_item_output_reports_nonconvergence(self) -> None:
+        """Check QAGS output with a message is marked non-converged."""
+        with patch.object(implementations, "quad", return_value=(1.0, 0.0, {"neval": 21}, "maximum subdivisions")):
+            result = implementations.compute_normalization_qags(0.4, 2.5)
+
+        self.assertEqual(float(result), 1.0)
+        self.assertEqual(result.work_done, 21)
+        self.assertFalse(result.converged)
 
     def test_mathematica_values_relative_error(self) -> None:
         r"""Test every implementation against Mathematica values for $\mathcal{N}(\alpha,\beta)$."""
