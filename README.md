@@ -39,6 +39,8 @@ To inspect the MkDocs site locally:
 python -m mkdocs serve
 ```
 
+The hosted documentation is published with GitHub Pages at <https://carlosm-silva.github.io/KingNorm/>.
+
 ### Release Reproducibility
 Use `environment.yml` as the maintained development and CI specification. For a release, create a clean environment from it, run the checks, then freeze exact package versions with:
 ```bash
