@@ -6,12 +6,12 @@ from math import factorial
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, cast
 
+import matplotlib
+
 from implementations import (
-    _integrand,
     compute_normalization_series,
     compute_reference_integral,
 )
-import matplotlib
 
 matplotlib.use("Agg")
 

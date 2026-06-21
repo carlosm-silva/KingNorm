@@ -10,18 +10,19 @@ from pathlib import Path
 import platform
 from typing import Any
 
-from implementations import (
-    compute_normalization_gauss_legendre,
-    compute_normalization_qags,
-    compute_normalization_series,
-    compute_reference_integral,
-)
 import mpmath as mp
 import numpy as np
 import pandas as pd
 import pyperf
 import scipy
 from tqdm import tqdm
+
+from implementations import (
+    compute_normalization_gauss_legendre,
+    compute_normalization_qags,
+    compute_normalization_series,
+    compute_reference_integral,
+)
 
 BenchmarkFunc = Callable[..., float]
 TARGET_REL_TOL = 1e-6

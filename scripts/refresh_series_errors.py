@@ -13,6 +13,7 @@ CSV_PATH = PROJECT_ROOT / "benchmark_results.csv"
 REFERENCE_PRECISION = 80
 REFERENCE_TERMS = 80
 
+
 def main() -> int:
     r"""Recompute series $\epsilon_{rel}$ values without rerunning timing benchmarks."""
     if str(PROJECT_ROOT) not in sys.path:
