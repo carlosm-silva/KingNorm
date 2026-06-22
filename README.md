@@ -1,6 +1,6 @@
 # King's Function Normalization
 
-This repository contains numerical implementations and benchmarks for the exact series representation of the King's-function normalization constant $\mathcal{N}(\alpha,\beta)$, accompanying the paper *"An exact series representation for the normalization constant of King's function"*.
+This repository contains numerical implementations and benchmarks for the exact series representation of the King's-function normalization constant $\mathcal{N}(\alpha,\beta)$, accompanying the paper *"An exact series representation for the normalization constant of the King function"*.
 
 ```python
 from implementations import compute_normalization_series
